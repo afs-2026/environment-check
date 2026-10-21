@@ -20,6 +20,11 @@ function command(program, args, cwd = root) {
   note(`\n> ${path.basename(program)} ${args.join(' ')}`);
   let result;
   if (windows && program.endsWith('.cmd')) {
+    if (!path.isAbsolute(program)) {
+      const located = spawnSync('where.exe', [program], { cwd, env, encoding: 'utf8' });
+      if (located.status !== 0) throw new Error(`Cannot find ${program} on PATH. Reopen the terminal after installation.`);
+      program = located.stdout.trim().split(/\r?\n/)[0];
+    }
     const quoted = [program, ...args].map(value => {
       if (/[\r\n"%]/.test(value)) throw new Error('Unsupported command argument');
       return `"${value}"`;
