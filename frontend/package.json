@@ -1,0 +1,14 @@
+{
+  "name": "environment-check-ui",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "engines": {"node": "24.x"},
+  "scripts": {"build": "tsc && vite build", "check:api": "node check-openapi.mjs"},
+  "dependencies": {"react": "19.3.1", "react-dom": "19.3.1"},
+  "devDependencies": {
+    "typescript": "7.0.2", "vite": "8.3.5", "@vitejs/plugin-react": "6.1.2",
+    "@types/react": "19.3.0", "@types/react-dom": "19.3.0",
+    "@playwright/test": "1.64.1", "@apidevtools/swagger-parser": "13.1.0"
+  }
+}

@@ -1,0 +1,1 @@
+{"openapi":"3.0.3","info":{"title":"Environment Check","version":"1.0.0"},"paths":{"/api/environment":{"get":{"responses":{"200":{"description":"H2 write and read succeeded","content":{"application/json":{"schema":{"type":"object","required":["status","database"],"properties":{"status":{"type":"string","enum":["ready"]},"database":{"type":"string","enum":["H2"]}}}}}}}}}}}

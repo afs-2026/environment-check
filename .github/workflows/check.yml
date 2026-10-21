@@ -1,0 +1,135 @@
+name: Validate Windows package
+
+on:
+  pull_request:
+    paths: ['java-basics/**', 'backend/**', 'frontend/**', 'scripts/**', '.mvn/**', '*.cmd', 'mvnw', 'pom.xml', 'VERSION', 'README.md', '.github/workflows/check.yml']
+  push:
+    tags: ['v*']
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: environment-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+jobs:
+  windows:
+    runs-on: windows-2025
+    timeout-minutes: 30
+    env:
+      CI: 'true'
+      ENVIRONMENT_CHECK_CACHE_ROOT: ${{ runner.temp }}\environment-cache
+    steps:
+      - uses: actions/checkout@08eba0b27e820071cde6df949e0beb9ba4906955
+        with:
+          persist-credentials: false
+      - uses: actions/setup-java@b843ebf9b913146b38da2eaa7aeddf76074ae1ad
+        with:
+          distribution: liberica
+          java-version: '21'
+          java-package: jdk
+      - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38
+        with:
+          node-version: '24'
+          package-manager-cache: false
+      - name: Build delivery ZIP
+        run: node scripts/package.mjs
+      - name: Online preparation from ZIP
+        shell: pwsh
+        run: |
+          $destination = Join-Path $env:RUNNER_TEMP 'environment online check'
+          Expand-Archive dist/environment-check.zip $destination
+          & (Join-Path $destination 'prepare.cmd')
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+      - name: Offline rebuild from a second clean extraction
+        shell: pwsh
+        run: |
+          $destination = Join-Path $env:RUNNER_TEMP 'environment offline check'
+          Expand-Archive dist/environment-check.zip $destination
+          & (Join-Path $destination 'verify-offline.cmd')
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+      - name: Missing Maven cache must fail
+        shell: pwsh
+        run: |
+          $env:ENVIRONMENT_CHECK_CACHE_ROOT = Join-Path $env:RUNNER_TEMP 'empty negative cache'
+          $output = & (Join-Path $env:RUNNER_TEMP 'environment offline check/verify-offline.cmd') 2>&1
+          $result = $LASTEXITCODE
+          $output | Write-Output
+          if ($result -eq 0 -or ($output -join "`n") -notmatch 'Maven 3.9.16 is not cached') { throw 'Missing-cache check did not fail for the expected reason' }
+          exit 0
+      - name: Invalid JAVA_HOME must fail
+        shell: pwsh
+        run: |
+          $env:JAVA_HOME = Join-Path $env:RUNNER_TEMP 'missing JDK'
+          $output = & (Join-Path $env:RUNNER_TEMP 'environment offline check/verify-offline.cmd') 2>&1
+          $result = $LASTEXITCODE
+          $output | Write-Output
+          if ($result -eq 0 -or ($output -join "`n") -notmatch 'Set JAVA_HOME') { throw 'Invalid-JDK check did not fail for the expected reason' }
+          exit 0
+      - name: Occupied port must fail without stopping its owner
+        shell: pwsh
+        run: |
+          $listener = [System.Net.Sockets.TcpListener]::new([System.Net.IPAddress]::Loopback, 18080)
+          $listener.Start()
+          try {
+            $output = & (Join-Path $env:RUNNER_TEMP 'environment offline check/verify-offline.cmd') 2>&1
+            $result = $LASTEXITCODE
+            $output | Write-Output
+            if ($result -eq 0 -or ($output -join "`n") -notmatch 'Port 18080 is occupied') { throw 'Port check did not fail for the expected reason' }
+            if (-not $listener.Server.IsBound) { throw 'Checker stopped an unrelated listener' }
+          } finally { $listener.Stop() }
+          exit 0
+      - name: Upload validated delivery files
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: validated-environment-package
+          path: |
+            dist/environment-check.zip
+            dist/SHA256SUMS
+          if-no-files-found: error
+          retention-days: 14
+      - name: Upload diagnostic logs
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: windows-check-logs
+          path: ${{ runner.temp }}/environment * check/.reports/*.log
+          if-no-files-found: ignore
+          retention-days: 14
+
+  release:
+    if: startsWith(github.ref, 'refs/tags/v') && github.event_name == 'push'
+    needs: windows
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@08eba0b27e820071cde6df949e0beb9ba4906955
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Check release source
+        env:
+          RELEASE_TAG: ${{ github.ref_name }}
+        run: |
+          test "$RELEASE_TAG" = "v$(cat VERSION)"
+          git merge-base --is-ancestor HEAD origin/main
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093
+        with:
+          name: validated-environment-package
+          path: delivery
+      - name: Publish tested ZIP
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_TAG: ${{ github.ref_name }}
+        run: |
+          cd delivery
+          sha256sum --check SHA256SUMS
+          if gh release view "$RELEASE_TAG" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
+            echo 'Release already exists; refusing to replace its assets.' >&2
+            exit 1
+          fi
+          gh release create "$RELEASE_TAG" environment-check.zip SHA256SUMS --repo "$GITHUB_REPOSITORY" --verify-tag --title "Environment Check $RELEASE_TAG" --notes 'Windows-validated preparation package. Run prepare.cmd before class; see README.md inside the ZIP.'
