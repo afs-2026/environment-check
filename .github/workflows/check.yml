@@ -20,7 +20,6 @@ jobs:
     timeout-minutes: 30
     env:
       CI: 'true'
-      ENVIRONMENT_CHECK_CACHE_ROOT: ${{ runner.temp }}\environment-cache
     steps:
       - uses: actions/checkout@08eba0b27e820071cde6df949e0beb9ba4906955
         with:
@@ -34,6 +33,11 @@ jobs:
         with:
           node-version: '24'
           package-manager-cache: false
+      - name: Select empty dependency caches
+        shell: pwsh
+        run: |
+          $cache = Join-Path $env:RUNNER_TEMP 'environment-cache'
+          "ENVIRONMENT_CHECK_CACHE_ROOT=$cache" >> $env:GITHUB_ENV
       - name: Build delivery ZIP
         run: node scripts/package.mjs
       - name: Online preparation from ZIP
