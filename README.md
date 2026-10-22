@@ -22,6 +22,13 @@ Keep the Maven, npm and Playwright caches. Class projects using the same locked 
 
 `verify-offline.cmd` verifies package-manager offline modes. It does not disable all networking on your computer. All application checks use only `127.0.0.1`.
 
+## macOS and Linux
+
+The checker itself is cross-platform; only the `.cmd` launchers are Windows-only. On macOS or Linux, run the script directly instead:
+
+1. Install JDK 21 and Node.js 24 LTS, for example with asdf. This folder contains a `.tool-versions` file (`java corretto-21`, `nodejs 24.22.1`); any JDK 21 distribution works. Export `JAVA_HOME` to the JDK 21 folder in your shell.
+2. Run `node scripts/readiness.mjs prepare`. It performs the same downloads, builds and checks as `prepare.cmd`, including the offline pass. To re-check later, run `node scripts/readiness.mjs offline`, matching `verify-offline.cmd`.
+
 ## What is checked
 
 | Component | Locked version or check |
