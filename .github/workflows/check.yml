@@ -2,7 +2,7 @@ name: Validate Windows package
 
 on:
   pull_request:
-    paths: ['java-basics/**', 'backend/**', 'frontend/**', 'scripts/**', '.mvn/**', '*.cmd', 'mvnw', 'pom.xml', 'VERSION', 'README.md', '.github/workflows/check.yml']
+    paths: ['java-basics/**', 'backend/**', 'frontend/**', 'scripts/**', '.mvn/**', '*.cmd', 'mvnw', '.gitattributes', '.tool-versions', 'pom.xml', 'VERSION', 'README.md', '.github/workflows/check.yml']
   push:
     tags: ['v*']
   workflow_dispatch:
