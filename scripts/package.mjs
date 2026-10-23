@@ -11,7 +11,7 @@ const revision = execFileSync('git', ['rev-parse', 'HEAD'], { cwd: root, encodin
 const output = path.resolve(process.argv[2] || path.join(root, 'dist'));
 mkdirSync(output, { recursive: true });
 const files = [
-  'README.md', 'VERSION', 'pom.xml', 'mvnw', 'mvnw.cmd',
+  'README.md', 'VERSION', 'pom.xml', 'mvnw', 'mvnw.cmd', '.tool-versions',
   '.mvn/wrapper/maven-wrapper.properties', '.mvn/wrapper/maven-wrapper.jar',
   'prepare.cmd', 'verify-offline.cmd', 'scripts/readiness.mjs',
   'java-basics/pom.xml', 'java-basics/src/main/java/training/environment/JavaCheck.java',
@@ -34,7 +34,7 @@ if (execFileSync('git', ['diff', '--name-only', revision, '--', ...files], { cwd
 const archive = path.join(output, 'environment-check.zip');
 // Git archive preserves dotfiles and excludes every file outside this explicit list.
 // The release is always built from a committed source tree.
-execFileSync('git', ['archive', '--format=zip', `--output=${archive}`, revision, '--', ...files], { cwd: root });
+execFileSync('git', ['-c', 'core.autocrlf=false', '-c', 'core.eol=lf', 'archive', '--format=zip', `--output=${archive}`, revision, '--', ...files], { cwd: root });
 const fingerprint = createHash('sha256').update(readFileSync(archive)).digest('hex');
 writeFileSync(path.join(output, 'SHA256SUMS'), `${fingerprint}  environment-check.zip\n`);
 console.log(`${archive}\nSHA-256 ${fingerprint}`);
